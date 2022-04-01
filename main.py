@@ -27,22 +27,20 @@ sample_balance = 100
 def check_hit_target(coin_name, coin_risk):
     if round(RISK_METRICS[coin_name], 1) != round(coin_risk, 1):
         level = round(coin_risk, 1)
-        msg = f"{coin_name} NEW LEVEL HIT {level}"
-        logger.info(msg)
-        telegram_bot.send_message(message=msg)
+        msg = f"{coin_name} NEW LEVEL HIT {level}\n"
+
 
         # if HIT_TARGET[coin_name][str(level)]:
         if level >= 0.5:
             record_coin_bal(coin_name, level)
             HIT_TARGET[coin_name][str(level)] = True
-            msg = f"EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
-            logger.info(msg)
-            telegram_bot.send_message(message=msg)
+            msg = f"{msg}EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
         else:
             HIT_TARGET[coin_name][str(level)] = True
-            msg = f"EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
-            logger.info(msg)
-            telegram_bot.send_message(message=msg)
+            msg = f"{msg}EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
+
+        logger.info(msg)
+        telegram_bot.send_message(message=msg)
 
 
 def record_coin_bal(coin_name, level):
