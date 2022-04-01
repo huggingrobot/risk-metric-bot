@@ -7,6 +7,7 @@ from time import sleep, time
 from core.logging import logger
 from binance.client import Client
 
+from services.telegram_service import telegram_bot
 from settings import API_KEY, SECRET_KEY
 
 sheet_id = "1cWOz33mP-sC8gFU0J5ONSDgcAqmLXFXTUfi7LLznC7E"
@@ -16,6 +17,7 @@ url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sh
 RISK_METRICS = {}
 HIT_TARGET = {}
 SELL_TARGET = {}
+MULTIPLIER_LEVEL = {"0.1": 5, "0.2": 4, "0.3": 3, "0.4": 2, "0.5": 1, "0.6": 1, "0.7": 2, "0.8": 3, "0.9": 4, "1.0": 5}
 
 lc = re.compile('[a-z]+')
 
@@ -25,15 +27,22 @@ sample_balance = 100
 def check_hit_target(coin_name, coin_risk):
     if round(RISK_METRICS[coin_name], 1) != round(coin_risk, 1):
         level = round(coin_risk, 1)
-        logger.info(f"NEW LEVEL HIT {level}")
-        if HIT_TARGET[coin_name][str(level)]:
-            if level >= 0.5:
-                logger.info(f"EXECUTE SELL ORDER")
-                record_coin_bal(coin_name, level)
-                HIT_TARGET[coin_name][str(level)] = True
-            else:
-                logger.info(f"EXECUTE BUY ORDER")
-                HIT_TARGET[coin_name][str(level)] = True
+        msg = f"{coin_name} NEW LEVEL HIT {level}"
+        logger.info(msg)
+        telegram_bot.send_message(message=msg)
+
+        # if HIT_TARGET[coin_name][str(level)]:
+        if level >= 0.5:
+            record_coin_bal(coin_name, level)
+            HIT_TARGET[coin_name][str(level)] = True
+            msg = f"EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
+            logger.info(msg)
+            telegram_bot.send_message(message=msg)
+        else:
+            HIT_TARGET[coin_name][str(level)] = True
+            msg = f"EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
+            logger.info(msg)
+            telegram_bot.send_message(message=msg)
 
 
 def record_coin_bal(coin_name, level):
@@ -71,10 +80,11 @@ def main():
                     check_hit_target(coin_name, coin_risk)
                     changes = "increase" if RISK_METRICS[coin_name] < coin_risk else "decrease"
                     RISK_METRICS[coin_name] = coin_risk
-                    msg = f"{msg}\n{coin_name=} {coin_risk=} [{changes}]"
+                    msg = f"{msg}\n{coin_name} ({coin_risk}) [{changes}]"
 
         if msg:
             logger.info(msg)
+            # telegram_bot.send_message(message=msg)
         # logger.info(f"{RISK_METRICS}")
         # logger.info(f"{HIT_TARGET}")
         sleep_sec = 60 - time() % 60
@@ -83,7 +93,9 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
+    telegram_bot.start_bot()
+    telegram_bot.send_message(message="Starting bot....")
+
     client = Client(API_KEY, SECRET_KEY, testnet=True)
     # info = client.get_all_tickers()
 
@@ -96,5 +108,4 @@ if __name__ == '__main__':
     info = client.get_account()
     logger.info(info)
 
-
-    # record_coin_bal('BTC', 0.5)
+    main()
