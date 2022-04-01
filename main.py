@@ -1,15 +1,21 @@
+import asyncio
+from concurrent.futures.thread import ThreadPoolExecutor
+
 import math
 import re
 
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep, time
 from core.logging import logger
 from binance.client import Client
 
 from services.telegram_service import telegram_bot
-from settings import API_KEY, SECRET_KEY
+from settings import API_KEY, SECRET_KEY, DEFAULT_TELEGRAM_NOTIFICATION_ID
+from utils.event_utils import ee, TelegramEventType
+from utils.math_utils import round_decimals_down
 
+startTime = time()
 sheet_id = "1cWOz33mP-sC8gFU0J5ONSDgcAqmLXFXTUfi7LLznC7E"
 sheet_name = "Dashboard"
 url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
@@ -24,20 +30,28 @@ lc = re.compile('[a-z]+')
 sample_balance = 100
 
 
+def get_uptime():
+    """
+    Returns the number of seconds since the program started.
+    """
+    # do return startTime if you just want the process start time
+    return time() - startTime
+
+
 def check_hit_target(coin_name, coin_risk):
-    if round(RISK_METRICS[coin_name], 1) != round(coin_risk, 1):
-        level = round(coin_risk, 1)
-        msg = f"{coin_name} NEW LEVEL HIT {level}\n"
+    old_level = round_decimals_down(RISK_METRICS[coin_name], 1)
+    new_level = round_decimals_down(coin_risk, 1)
 
-
+    if old_level != new_level:
+        msg = f"{coin_name} NEW LEVEL HIT {new_level}\n"
         # if HIT_TARGET[coin_name][str(level)]:
-        if level >= 0.5:
-            record_coin_bal(coin_name, level)
-            HIT_TARGET[coin_name][str(level)] = True
-            msg = f"{msg}EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
+        if new_level >= 0.5:
+            record_coin_bal(coin_name, new_level)
+            HIT_TARGET[coin_name][str(new_level)] = True
+            msg = f"{msg}EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
         else:
-            HIT_TARGET[coin_name][str(level)] = True
-            msg = f"{msg}EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(level)]}x"
+            HIT_TARGET[coin_name][str(new_level)] = True
+            msg = f"{msg}EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
 
         logger.info(msg)
         telegram_bot.send_message(message=msg)
@@ -60,7 +74,22 @@ def record_coin_bal(coin_name, level):
         # logger.info(f"{total=}")
 
 
-def main():
+def stats_requested(chat_id=DEFAULT_TELEGRAM_NOTIFICATION_ID):
+    td = timedelta(seconds=round(get_uptime()))
+    timeup = f"{td.days}days, {(td.seconds // 3600) % 24}hrs, {(td.seconds // 60) % 60}mins, {td.seconds % 60}secs"
+
+    msg = f"RISK METRIC\n" \
+          f"================\n"
+    for key, value in RISK_METRICS.items():
+        msg = f"{msg}{key:<5} {value:.03f} {'SELL' if value > 0.5 else 'BUY'}\n"
+    msg = f"{msg} {timeup}\n"
+    logger.info(msg)
+    telegram_bot.send_message(chat_id=chat_id, message=msg)
+
+
+async def run_checker():
+    last_checked_day = 0
+    ee.on(TelegramEventType.STATS, stats_requested)
     while True:
         df = pd.read_csv(url)
         msg = ""
@@ -72,7 +101,7 @@ def main():
                     RISK_METRICS[coin_name] = coin_risk
                     HIT_TARGET[coin_name] = {"0.1": False, "0.2": False, "0.3": False, "0.4": False, "0.5": False,
                                              "0.6": False, "0.7": False, "0.8": False, "0.9": False, "1.0": False}
-                    HIT_TARGET[coin_name][str(round(coin_risk, 1))] = True
+                    HIT_TARGET[coin_name][str(round_decimals_down(coin_risk, 1))] = True
                     continue
                 if RISK_METRICS[coin_name] != coin_risk:
                     check_hit_target(coin_name, coin_risk)
@@ -85,25 +114,39 @@ def main():
             # telegram_bot.send_message(message=msg)
         # logger.info(f"{RISK_METRICS}")
         # logger.info(f"{HIT_TARGET}")
-        sleep_sec = 60 - time() % 60
+        if last_checked_day != int(datetime.now().strftime('%d')):
+            logger.info(f"{last_checked_day} != {int(datetime.now().strftime('%d'))}")
+            stats_requested()
+        last_checked_day = int(datetime.now().strftime('%d'))
+        sleep_sec = 300 - time() % 300
         logger.info(f"{datetime.now()} {sleep_sec=}")
         sleep(sleep_sec)
 
 
-if __name__ == '__main__':
+async def main():
     telegram_bot.start_bot()
     telegram_bot.send_message(message="Starting bot....")
-
     client = Client(API_KEY, SECRET_KEY, testnet=True)
     # info = client.get_all_tickers()
-
     # order = client.order_market_buy(
     #     symbol='XRPBUSD',
     #     quantity=100)
     # logger.info(order)
-
     # info = client.get_all_tickers()
     info = client.get_account()
     logger.info(info)
 
-    main()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        event_loop = asyncio.get_event_loop()
+        await asyncio.gather(run_checker(),
+                             event_loop.run_in_executor(executor, telegram_bot.run_bot))
+
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    try:
+        asyncio.ensure_future(main())
+        loop.run_forever()
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
