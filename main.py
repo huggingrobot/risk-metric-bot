@@ -91,36 +91,43 @@ async def run_checker():
     last_checked_day = 0
     ee.on(TelegramEventType.STATS, stats_requested)
     while True:
-        df = pd.read_csv(url)
-        msg = ""
-        for i in range(4, 28):
-            coin_name = df.iloc[i, 0]
-            coin_risk = df.iloc[i, 3]
-            if not lc.findall(coin_name) and not math.isnan(coin_risk):
-                if coin_name not in RISK_METRICS:
-                    RISK_METRICS[coin_name] = coin_risk
-                    HIT_TARGET[coin_name] = {"0.1": False, "0.2": False, "0.3": False, "0.4": False, "0.5": False,
-                                             "0.6": False, "0.7": False, "0.8": False, "0.9": False, "1.0": False}
-                    HIT_TARGET[coin_name][str(round_decimals_down(coin_risk, 1))] = True
-                    continue
-                if RISK_METRICS[coin_name] != coin_risk:
-                    check_hit_target(coin_name, coin_risk)
-                    changes = "increase" if RISK_METRICS[coin_name] < coin_risk else "decrease"
-                    RISK_METRICS[coin_name] = coin_risk
-                    msg = f"{msg}\n{coin_name} ({coin_risk}) [{changes}]"
+        try:
+            df = pd.read_csv(url)
+            msg = ""
+            for i in range(4, 28):
+                coin_name = df.iloc[i, 0]
+                coin_risk = df.iloc[i, 3]
+                if not lc.findall(coin_name) and not math.isnan(coin_risk):
+                    if coin_name not in RISK_METRICS:
+                        RISK_METRICS[coin_name] = coin_risk
+                        HIT_TARGET[coin_name] = {"0.1": False, "0.2": False, "0.3": False, "0.4": False, "0.5": False,
+                                                 "0.6": False, "0.7": False, "0.8": False, "0.9": False, "1.0": False}
+                        HIT_TARGET[coin_name][str(round_decimals_down(coin_risk, 1))] = True
+                        continue
+                    if RISK_METRICS[coin_name] != coin_risk:
+                        check_hit_target(coin_name, coin_risk)
+                        changes = "increase" if RISK_METRICS[coin_name] < coin_risk else "decrease"
+                        RISK_METRICS[coin_name] = coin_risk
+                        msg = f"{msg}\n{coin_name} ({coin_risk}) [{changes}]"
 
-        if msg:
+            if msg:
+                logger.info(msg)
+                # telegram_bot.send_message(message=msg)
+            # logger.info(f"{RISK_METRICS}")
+            # logger.info(f"{HIT_TARGET}")
+            if last_checked_day != int(datetime.now().strftime('%d')):
+                logger.info(f"{last_checked_day} != {int(datetime.now().strftime('%d'))}")
+                stats_requested()
+            last_checked_day = int(datetime.now().strftime('%d'))
+
+        except Exception as ex:
+            msg = f"Exception just occured:\n{ex}"
             logger.info(msg)
-            # telegram_bot.send_message(message=msg)
-        # logger.info(f"{RISK_METRICS}")
-        # logger.info(f"{HIT_TARGET}")
-        if last_checked_day != int(datetime.now().strftime('%d')):
-            logger.info(f"{last_checked_day} != {int(datetime.now().strftime('%d'))}")
-            stats_requested()
-        last_checked_day = int(datetime.now().strftime('%d'))
-        sleep_sec = 300 - time() % 300
-        logger.info(f"{datetime.now()} {sleep_sec=}")
-        sleep(sleep_sec)
+            telegram_bot.send_message(message=msg)
+        finally:
+            sleep_sec = 300 - time() % 300
+            logger.info(f"{datetime.now()} {sleep_sec=}")
+            sleep(sleep_sec)
 
 
 async def main():
