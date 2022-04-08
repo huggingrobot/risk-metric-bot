@@ -121,7 +121,7 @@ async def run_checker():
             last_checked_day = int(datetime.now().strftime('%d'))
 
         except Exception as ex:
-            msg = f"Exception just occured:\n{ex}"
+            msg = f"Exception just occurred:\n{ex}"
             logger.info(msg)
             telegram_bot.send_message(message=msg)
         finally:
