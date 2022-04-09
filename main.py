@@ -21,7 +21,8 @@ sheet_name = "Dashboard"
 url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
 RISK_METRICS = {}
-HIT_TARGET = {}
+CURRENT_RISK = {}
+LAST_HIT_RISK = {}
 SELL_TARGET = {}
 MULTIPLIER_LEVEL = {"0.1": 5, "0.2": 4, "0.3": 3, "0.4": 2, "0.5": 1, "0.6": 1, "0.7": 2, "0.8": 3, "0.9": 4, "1.0": 5}
 
@@ -44,17 +45,19 @@ def check_hit_target(coin_name, coin_risk):
 
     if old_level != new_level:
         msg = f"{coin_name} NEW LEVEL HIT {new_level}\n"
-        # if HIT_TARGET[coin_name][str(level)]:
-        if new_level >= 0.5:
-            record_coin_bal(coin_name, new_level)
-            HIT_TARGET[coin_name][str(new_level)] = True
-            msg = f"{msg}EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
-        else:
-            HIT_TARGET[coin_name][str(new_level)] = True
-            msg = f"{msg}EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
+        CURRENT_RISK[coin_name] = new_level
 
-        logger.info(msg)
-        telegram_bot.send_message(message=msg)
+        if str(new_level) != LAST_HIT_RISK[coin_name]:
+            LAST_HIT_RISK[coin_name] = old_level
+
+            if new_level >= 0.5:
+                record_coin_bal(coin_name, new_level)
+                msg = f"{msg}EXECUTE SELL ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
+            else:
+                msg = f"{msg}EXECUTE BUY ORDER on {coin_name} with total amount {MULTIPLIER_LEVEL[str(new_level)]}/15"
+
+            logger.info(msg)
+            telegram_bot.send_message(message=msg)
 
 
 def record_coin_bal(coin_name, level):
@@ -100,9 +103,7 @@ async def run_checker():
                 if not lc.findall(coin_name) and not math.isnan(coin_risk):
                     if coin_name not in RISK_METRICS:
                         RISK_METRICS[coin_name] = coin_risk
-                        HIT_TARGET[coin_name] = {"0.1": False, "0.2": False, "0.3": False, "0.4": False, "0.5": False,
-                                                 "0.6": False, "0.7": False, "0.8": False, "0.9": False, "1.0": False}
-                        HIT_TARGET[coin_name][str(round_decimals_down(coin_risk, 1))] = True
+                        LAST_HIT_RISK[coin_name] = str(round_decimals_down(coin_risk, 1))
                         continue
                     if RISK_METRICS[coin_name] != coin_risk:
                         check_hit_target(coin_name, coin_risk)
