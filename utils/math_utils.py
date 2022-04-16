@@ -17,4 +17,4 @@ def round_decimals_down(number: float, decimals: int = 2):
 
 
 if __name__ == '__main__':
-    print(round_decimals_down(0.49999, 1))
+    print(round_decimals_down(0.0, 1))

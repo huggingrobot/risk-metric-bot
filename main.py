@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
 
 import math
@@ -24,7 +25,8 @@ RISK_METRICS = {}
 CURRENT_RISK = {}
 LAST_HIT_RISK = {}
 SELL_TARGET = {}
-MULTIPLIER_LEVEL = {"0.1": 5, "0.2": 4, "0.3": 3, "0.4": 2, "0.5": 1, "0.6": 1, "0.7": 2, "0.8": 3, "0.9": 4, "1.0": 5}
+MULTIPLIER_LEVEL = {"0.0": 0, "0.1": 5, "0.2": 4, "0.3": 3, "0.4": 2, "0.5": 1, "0.6": 1, "0.7": 2, "0.8": 3, "0.9": 4,
+                    "1.0": 5}
 
 lc = re.compile('[a-z]+')
 
@@ -122,6 +124,7 @@ async def run_checker():
             last_checked_day = int(datetime.now().strftime('%d'))
 
         except Exception as ex:
+            logger.info(traceback.format_exc())
             msg = f"Exception just occurred:\n{ex}"
             logger.info(msg)
             telegram_bot.send_message(message=msg)
