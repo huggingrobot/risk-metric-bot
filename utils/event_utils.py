@@ -1,6 +1,8 @@
 from pyee import AsyncIOEventEmitter, EventEmitter
 
 ee = AsyncIOEventEmitter()
+
+
 # ee = EventEmitter()
 
 class EExchange:
@@ -20,7 +22,4 @@ class TelegramEventType:
     STATS = 'STATS'
     STOP = 'STOP'
     PAUSE = 'PAUSE'
-
-
-class ESignal:
-    DIVERGENCE_FOUND = 'DIVERGENCE_FOUND'
+    URL = 'URL'

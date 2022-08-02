@@ -9,7 +9,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 from time import sleep, time
 from core.logging import logger
-from binance.client import Client
 
 from services.telegram_service import telegram_bot
 from settings import API_KEY, SECRET_KEY, DEFAULT_TELEGRAM_NOTIFICATION_ID
@@ -92,9 +91,16 @@ def stats_requested(chat_id=DEFAULT_TELEGRAM_NOTIFICATION_ID):
     telegram_bot.send_message(chat_id=chat_id, message=msg)
 
 
+def url_requested(chat_id=DEFAULT_TELEGRAM_NOTIFICATION_ID):
+    msg = "https://docs.google.com/spreadsheets/d/1cWOz33mP-sC8gFU0J5ONSDgcAqmLXFXTUfi7LLznC7E/"
+    logger.info(msg)
+    telegram_bot.send_message(chat_id=chat_id, message=msg)
+
+
 async def run_checker():
     last_checked_day = 0
     ee.on(TelegramEventType.STATS, stats_requested)
+    ee.on(TelegramEventType.URL, url_requested)
     while True:
         try:
             df = pd.read_csv(url)
@@ -102,6 +108,10 @@ async def run_checker():
             for i in range(4, 28):
                 coin_name = df.iloc[i, 0]
                 coin_risk = df.iloc[i, 3]
+
+                if not isinstance(coin_name, str):
+                    continue
+
                 if not lc.findall(coin_name) and not math.isnan(coin_risk):
                     if coin_name not in RISK_METRICS:
                         RISK_METRICS[coin_name] = coin_risk
@@ -130,22 +140,21 @@ async def run_checker():
             telegram_bot.send_message(message=msg)
         finally:
             sleep_sec = 300 - time() % 300
-            logger.info(f"{datetime.now()} {sleep_sec=}")
+            logger.info(f"{datetime.now()} {sleep_sec=:.04f}")
             sleep(sleep_sec)
 
 
 async def main():
     telegram_bot.start_bot()
     telegram_bot.send_message(message="Starting bot....")
-    client = Client(API_KEY, SECRET_KEY, testnet=True)
     # info = client.get_all_tickers()
     # order = client.order_market_buy(
     #     symbol='XRPBUSD',
     #     quantity=100)
     # logger.info(order)
     # info = client.get_all_tickers()
-    info = client.get_account()
-    logger.info(info)
+    # info = client.get_account()
+    # logger.info(info)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         event_loop = asyncio.get_event_loop()

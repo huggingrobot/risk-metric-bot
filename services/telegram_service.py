@@ -42,6 +42,7 @@ class TelegramBot(metaclass=Singleton):
         self.dispatcher.add_handler(CommandHandler('help', self.help_command))
         self.dispatcher.add_handler(CommandHandler('test', self.test_command))
         self.dispatcher.add_handler(CommandHandler('stats', self.stats_command))
+        self.dispatcher.add_handler(CommandHandler('url', self.url_command))
         self.dispatcher.add_handler(CommandHandler('pause', self.pause_command))
         self.dispatcher.add_handler(CommandHandler('custom', self.custom_command))
 
@@ -63,6 +64,11 @@ class TelegramBot(metaclass=Singleton):
         logger.info(f'User ({update.message.chat.id}) says: {text}')
         update.message.reply_text('CHECKING STATS...')
         ee.emit(TelegramEventType.STATS, update.message.chat.id)
+
+    def url_command(self, update, context):
+        text = str(update.message.text).lower()
+        logger.info(f'User ({update.message.chat.id}) says: {text}')
+        ee.emit(TelegramEventType.URL, update.message.chat.id)
 
     def pause_command(self, update, context):
         text = str(update.message.text).lower()
